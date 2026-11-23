@@ -100,3 +100,10 @@ def test_dashboard_panels_are_well_formed() -> None:
         assert p.get("datasource", {}).get("uid") == uid.group(1), p["title"]
         assert p.get("targets"), p["title"]
     assert len(dashboard_exprs()) >= 8
+
+
+def test_compose_publishes_ports_on_loopback_only() -> None:
+    # The service has no auth yet and Grafana uses admin/admin locally: never expose them to the LAN.
+    ports = re.findall(r'^\s*-\s*"([^"]+:\d+)"\s*$', (ROOT / "docker-compose.yml").read_text(), re.M)
+    assert len(ports) == 4
+    assert all(p.startswith("127.0.0.1:") for p in ports), ports
