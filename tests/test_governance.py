@@ -145,3 +145,47 @@ def test_approval_rechecks_the_cap(gov: Governance) -> None:
     )
     with pytest.raises(GovernanceError, match="cap"):
         gov.approve("inc_1", over, actor="host", provider="offline")
+
+
+# ---------------------------------------------------------------- per-incident cap
+
+
+def test_cap_applies_to_the_total_of_refunds_in_one_batch(gov: Governance) -> None:
+    # Three SGD 150 refunds must not slip past a SGD 200 cap by being split up.
+    drafts = [draft(ActionType.REFUND, amount_sgd=150) for _ in range(3)]
+    actions = gov.apply("inc_1", "offline", drafts, step=1)
+    refunds = [a for a in actions if a.type is ActionType.REFUND]
+    assert [r.status for r in refunds] == [
+        ActionStatus.PENDING_APPROVAL,
+        ActionStatus.BLOCKED,
+        ActionStatus.BLOCKED,
+    ]
+    assert sum(a.type is ActionType.ESCALATE_HOST for a in actions) == 2
+
+
+def test_cap_counts_refunds_already_on_the_incident(gov: Governance) -> None:
+    prior = [ProposedAction(type=ActionType.REFUND, reason="r", amount_sgd=120, status=ActionStatus.EXECUTED)]
+    ok = gov.apply("inc_1", "offline", [draft(ActionType.REFUND, amount_sgd=80)], prior=prior)
+    assert ok[0].status is ActionStatus.PENDING_APPROVAL
+    over = gov.apply("inc_1", "offline", [draft(ActionType.REFUND, amount_sgd=81)], prior=prior)
+    assert over[0].status is ActionStatus.BLOCKED
+
+
+def test_rejected_and_blocked_refunds_do_not_use_up_the_cap(gov: Governance) -> None:
+    prior = [
+        ProposedAction(type=ActionType.REFUND, reason="r", amount_sgd=150, status=ActionStatus.REJECTED),
+        ProposedAction(type=ActionType.REFUND, reason="r", amount_sgd=999, status=ActionStatus.BLOCKED),
+    ]
+    [action] = gov.apply("inc_1", "offline", [draft(ActionType.REFUND, amount_sgd=200)], prior=prior)
+    assert action.status is ActionStatus.PENDING_APPROVAL
+
+
+def test_approval_rechecks_the_incident_total(gov: Governance) -> None:
+    executed = ProposedAction(
+        type=ActionType.REFUND, reason="r", amount_sgd=150, status=ActionStatus.EXECUTED
+    )
+    pending = ProposedAction(
+        type=ActionType.REFUND, reason="r", amount_sgd=100, status=ActionStatus.PENDING_APPROVAL
+    )
+    with pytest.raises(GovernanceError, match="cap"):
+        gov.approve("inc_1", pending, actor="host", provider="offline", prior=[executed])

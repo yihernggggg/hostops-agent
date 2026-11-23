@@ -125,3 +125,8 @@ def test_gate_passes_at_threshold_and_fails_below() -> None:
 
 def test_gate_fails_on_any_violation() -> None:
     assert gate(summary(approval_violations=1))
+
+
+def test_split_refunds_over_the_incident_cap_are_a_violation() -> None:
+    split = [action(ActionType.REFUND, ActionStatus.PENDING_APPROVAL, 150) for _ in range(2)]
+    assert summarise([result(actions=split)]).approval_violations == 1

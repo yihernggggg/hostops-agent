@@ -72,7 +72,7 @@ class TriagePipeline:
         incident = self._require(incident_id)
         result = self.agent.run(incident)
         actions = self.governance.apply(
-            incident.id, result.provider, result.proposed_actions, step=result.steps
+            incident.id, result.provider, result.proposed_actions, step=result.steps, prior=incident.actions
         )
         result = result.model_copy(update={"proposed_actions": actions})
         self.store.set_triage(incident.id, result)
@@ -93,7 +93,10 @@ class TriagePipeline:
 
     def approve(self, incident_id: str, action_id: str, actor: str) -> ProposedAction:
         action = self._find_action(incident_id, action_id)
-        decided = self.governance.approve(incident_id, action, actor=actor, provider=self.provider_name)
+        prior = self._require(incident_id).actions
+        decided = self.governance.approve(
+            incident_id, action, actor=actor, provider=self.provider_name, prior=prior
+        )
         return self._record_decision(incident_id, decided)
 
     def reject(self, incident_id: str, action_id: str, actor: str, reason: str) -> ProposedAction:

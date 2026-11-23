@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -91,12 +91,24 @@ class AuditLog:
         return [r for r in records if incident_id is None or r.get("incident_id") == incident_id]
 
 
-def _refund_block_reason(action: ActionDraft) -> str | None:
+# Refunds that use up the per-incident cap. Rejected and blocked ones were never paid.
+_COMMITTED = (ActionStatus.PENDING_APPROVAL, ActionStatus.EXECUTED)
+
+
+def committed_refunds_sgd(
+    actions: Iterable[ProposedAction], statuses: Iterable[ActionStatus] = _COMMITTED
+) -> float:
+    wanted = set(statuses)
+    return sum(a.amount_sgd or 0.0 for a in actions if a.type is ActionType.REFUND and a.status in wanted)
+
+
+def _refund_block_reason(action: ActionDraft, already_committed_sgd: float = 0.0) -> str | None:
+    """The cap is per incident: this refund plus refunds already pending or paid on the incident."""
     if action.type is not ActionType.REFUND:
         return None
     if action.amount_sgd is None:
         return "refund_missing_amount"
-    if action.amount_sgd > REFUND_CAP_SGD:
+    if already_committed_sgd + action.amount_sgd > REFUND_CAP_SGD:
         return "refund_over_cap"
     return None
 
@@ -106,9 +118,17 @@ class Governance:
         self.audit = audit
 
     def apply(
-        self, incident_id: str, provider: str, drafts: Sequence[ActionDraft], step: int | None = None
+        self,
+        incident_id: str,
+        provider: str,
+        drafts: Sequence[ActionDraft],
+        step: int | None = None,
+        prior: Sequence[ProposedAction] = (),
     ) -> list[ProposedAction]:
-        """Decide every proposal. Returns the resulting actions (a blocked refund yields two)."""
+        """Decide every proposal. Returns the resulting actions (a blocked refund yields two).
+
+        `prior` is what the incident already has; its pending and executed refunds count toward the cap.
+        """
         out: list[ProposedAction] = []
         for d in drafts:
             # Rebuild from draft fields only: any id/status the model supplied is discarded.
@@ -116,7 +136,7 @@ class Governance:
             self.audit.append(
                 "proposal", incident_id=incident_id, provider=provider, step=step, action=action.model_dump()
             )
-            block = _refund_block_reason(action)
+            block = _refund_block_reason(action, committed_refunds_sgd([*prior, *out]))
             if block:
                 out.extend(self._block_refund(incident_id, provider, step, action, block))
                 continue
@@ -132,11 +152,18 @@ class Governance:
         return out
 
     def approve(
-        self, incident_id: str, action: ProposedAction, *, actor: str, provider: str
+        self,
+        incident_id: str,
+        action: ProposedAction,
+        *,
+        actor: str,
+        provider: str,
+        prior: Sequence[ProposedAction] = (),
     ) -> ProposedAction:
         self._require_pending(action)
-        block = _refund_block_reason(action)
-        if block:  # defence in depth: never approve past the cap
+        paid = committed_refunds_sgd((a for a in prior if a.id != action.id), [ActionStatus.EXECUTED])
+        block = _refund_block_reason(action, paid)
+        if block:  # defence in depth: never approve past the cap, counting refunds already paid
             GOVERNANCE_BLOCKS.labels(reason=block).inc()
             raise GovernanceError(f"cannot approve: {block} (cap SGD {REFUND_CAP_SGD:.0f})")
         decided = action.model_copy(
