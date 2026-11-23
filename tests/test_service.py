@@ -132,3 +132,36 @@ def test_metrics_exposes_hostops_series(client: TestClient) -> None:
         "hostops_pending_approvals",
     ]:
         assert name in text, name
+
+
+def test_accepts_a_full_alertmanager_v4_payload(client: TestClient) -> None:
+    payload = {
+        "version": "4",
+        "groupKey": '{}:{alertname="CalendarSyncFailing"}',
+        "truncatedAlerts": 0,
+        "status": "firing",
+        "receiver": "hostops",
+        "groupLabels": {"alertname": "CalendarSyncFailing"},
+        "commonLabels": {"alertname": "CalendarSyncFailing", "category": "system_calendar_sync"},
+        "commonAnnotations": {"summary": "Calendar sync failed 4 times in the last 5 minutes"},
+        "externalURL": "http://alertmanager:9093",
+        "alerts": [
+            {
+                "status": "firing",
+                "labels": {
+                    "alertname": "CalendarSyncFailing",
+                    "category": "system_calendar_sync",
+                    "severity": "high",
+                },
+                "annotations": {"summary": "Calendar sync failed 4 times in the last 5 minutes"},
+                "startsAt": "2026-11-23T10:00:00Z",
+                "endsAt": "0001-01-01T00:00:00Z",
+                "generatorURL": "http://prometheus:9090/graph",
+                "fingerprint": "abc123",
+            }
+        ],
+    }
+    r = client.post("/alerts", json=payload)
+    assert r.status_code == 200, r.text
+    [incident_id] = r.json()["created"]
+    assert client.get(f"/incidents/{incident_id}").json()["triage"]["category"] == "system_calendar_sync"
