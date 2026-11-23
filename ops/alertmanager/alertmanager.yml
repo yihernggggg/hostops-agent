@@ -10,3 +10,7 @@ receivers:
     webhook_configs:
       - url: http://hostops:8000/alerts
         send_resolved: true   # resolved alerts close the incident
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /run/secrets/api_token

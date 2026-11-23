@@ -116,3 +116,15 @@ def test_alertmanager_repeats_often_enough_to_recover_lost_incidents() -> None:
     assert match
     seconds = int(match.group(1)) * {"s": 1, "m": 60, "h": 3600}[match.group(2)]
     assert seconds <= 300
+
+
+def test_prometheus_and_alertmanager_authenticate_to_the_api() -> None:
+    assert re.search(r"credentials_file:\s*/run/secrets/api_token", PROM.read_text())
+    assert re.search(r"credentials_file:\s*/run/secrets/api_token", ALERTMANAGER.read_text())
+
+
+def test_compose_passes_the_token_as_a_secret_file() -> None:
+    compose = (ROOT / "docker-compose.yml").read_text()
+    assert "HOSTOPS_API_TOKEN_FILE: /run/secrets/api_token" in compose
+    assert re.search(r"^secrets:\s*\n\s+api_token:\s*\n\s+file:", compose, re.M)
+    assert "secrets/" in (ROOT / ".gitignore").read_text().splitlines()

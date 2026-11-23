@@ -8,10 +8,12 @@ services:
     environment:
       HOSTOPS_PROVIDER: ${HOSTOPS_PROVIDER:-offline}
       HOSTOPS_SYNC_INTERVAL_S: "15"
+      HOSTOPS_API_TOKEN_FILE: /run/secrets/api_token
       # Only read when HOSTOPS_PROVIDER=anthropic; comes from your shell, never from this file.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "127.0.0.1:${HOSTOPS_PORT:-8000}:8000"
+    secrets: [api_token]
     volumes:
       - hostops-data:/data
     restart: unless-stopped
@@ -23,6 +25,7 @@ services:
       - --storage.tsdb.retention.time=7d
     volumes:
       - ./ops/prometheus:/etc/prometheus:ro
+    secrets: [api_token]
     ports:
       - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     depends_on: [hostops, alertmanager]
@@ -34,6 +37,7 @@ services:
       - --config.file=/etc/alertmanager/alertmanager.yml
     volumes:
       - ./ops/alertmanager:/etc/alertmanager:ro
+    secrets: [api_token]
     ports:
       - "127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093"
     restart: unless-stopped
@@ -56,3 +60,10 @@ services:
 
 volumes:
   hostops-data:
+
+# The API bearer token, shared by the service, Prometheus (scrape) and Alertmanager (webhook).
+# Create it once; secrets/ is gitignored:
+#   mkdir -p secrets && python3 -c "import secrets; print(secrets.token_urlsafe(32))" > secrets/api_token
+secrets:
+  api_token:
+    file: ./secrets/api_token

@@ -7,3 +7,4 @@ __pycache__/
 audit.jsonl
 *.audit.jsonl
 .env
+secrets/
