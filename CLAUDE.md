@@ -145,7 +145,7 @@ These are why the code can be written fast by an agent and still be trusted. Do 
 | `restart_sync` | low, internal, reversible | auto-execute |
 | `reply_guest` | guest-facing | requires approval |
 | `dispatch_vendor` | costs money | requires approval |
-| `refund` | costs money | requires approval; amounts over SGD 200 are blocked and converted to `escalate_host` |
+| `refund` | costs money | requires approval; the SGD 200 cap is **per incident** (this refund plus refunds already pending or executed on it); a refund that would exceed it is blocked and converted to `escalate_host` |
 
 - The policy is enforced in `governance.py` **after** the agent proposes, never by trusting the model.
 - Every tool call, proposal, policy decision, approval and rejection is appended to `audit.jsonl`

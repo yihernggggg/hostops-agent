@@ -180,3 +180,26 @@ def test_duplicate_alerts_merge_into_the_open_incident(pipeline: TriagePipeline,
     third, merged3 = pipeline.ingest_alert(alert("CalendarSyncFailing", "sync failing again"))
     assert merged3 is False
     assert third.id != first.id
+
+
+def test_pipeline_enforces_cap_across_split_refunds(pipeline: TriagePipeline) -> None:
+    from hostops.agent.llm import LLMResponse, ToolCall
+
+    class SplitRefunds:
+        name = "scripted"
+
+        def next_step(self, system: str, messages: list[object], tools: list[object]) -> LLMResponse:
+            refund = {"type": "refund", "reason": "partial", "amount_sgd": 150}
+            args: dict[str, object] = {
+                "category": "billing",
+                "severity": "medium",
+                "summary": "s",
+                "root_cause": "r",
+                "proposed_actions": [refund, refund, refund],
+            }
+            return LLMResponse(tool_calls=[ToolCall("c1", "submit_triage", args)])
+
+    pipeline.agent.provider = SplitRefunds()  # type: ignore[assignment]  # test double, structurally a provider
+    inc = pipeline.triage(pipeline.ingest(guest("please refund me")).id)
+    live = [a for a in inc.actions if a.type is ActionType.REFUND and a.status is not ActionStatus.BLOCKED]
+    assert sum(a.amount_sgd or 0 for a in live) <= 200
