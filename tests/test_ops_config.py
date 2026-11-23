@@ -103,10 +103,19 @@ def test_dashboard_panels_are_well_formed() -> None:
 
 
 def test_compose_publishes_ports_on_loopback_only() -> None:
-    # The service has no auth yet and Grafana uses admin/admin locally: never expose them to the LAN.
+    # Grafana uses admin/admin and Prometheus/Alertmanager have no auth: they stay on loopback, always.
+    # Only the API may be rebound (HOSTOPS_BIND, used on EC2 behind a security group), and its default
+    # is still loopback.
     ports = re.findall(r'^\s*-\s*"([^"]+:\d+)"\s*$', (ROOT / "docker-compose.yml").read_text(), re.M)
     assert len(ports) == 4
-    assert all(p.startswith("127.0.0.1:") for p in ports), ports
+    api = [p for p in ports if p.endswith(":8000")]
+    others = [p for p in ports if not p.endswith(":8000")]
+    assert api == ["${HOSTOPS_BIND:-127.0.0.1}:${HOSTOPS_PORT:-8000}:8000"]
+    assert all(p.startswith("127.0.0.1:") for p in others), others
+
+
+def test_compose_image_is_overridable_for_deploys() -> None:
+    assert "image: ${HOSTOPS_IMAGE:-hostops-agent:local}" in (ROOT / "docker-compose.yml").read_text()
 
 
 def test_alertmanager_repeats_often_enough_to_recover_lost_incidents() -> None:
