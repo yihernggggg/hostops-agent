@@ -6,11 +6,13 @@ from fastapi.testclient import TestClient
 from hostops.config import Settings
 from hostops.service import create_app
 
+TOKEN = "test-token-not-secret"  # noqa: S105  # test fixture value
+
 
 @pytest.fixture
 def client(tmp_path: Path) -> TestClient:
-    app = create_app(Settings(audit_path=tmp_path / "audit.jsonl", sync_interval_s=0))
-    return TestClient(app)
+    app = create_app(Settings(audit_path=tmp_path / "audit.jsonl", sync_interval_s=0, api_token=TOKEN))
+    return TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"})
 
 
 def post_guest(client: TestClient, text: str) -> str:

@@ -191,6 +191,7 @@ def test_guest_runs_can_only_search_their_own_logs() -> None:
     from hostops.agent.tools import run_tool
     from hostops.models import Source
 
+    telemetry.configure_logging("DEBUG")  # the log buffer is filled by the handler this installs
     log = telemetry.get_logger("hostops.test")
     telemetry.log(log, 20, "would execute reply_guest", incident_id="inc_other", message="secret")
     telemetry.log(log, 20, "own line", incident_id="inc_mine")

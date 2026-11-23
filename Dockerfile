@@ -19,4 +19,4 @@ USER app
 EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"
-CMD ["uvicorn", "hostops.service:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "hostops.service:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

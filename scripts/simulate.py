@@ -67,9 +67,21 @@ def fake_alert(client: httpx.Client, alertname: str, category: str, summary: str
     print(f"POST /alerts ({alertname}) -> {r.status_code} {r.text}")
 
 
+def api_token() -> str | None:
+    """HOSTOPS_API_TOKEN, else the compose secret file if it exists."""
+    token = os.environ.get("HOSTOPS_API_TOKEN")
+    path = os.environ.get("HOSTOPS_API_TOKEN_FILE", "secrets/api_token")
+    if not token and os.path.exists(path):
+        with open(path) as fh:
+            token = fh.read().strip()
+    return token or None
+
+
 def run(args: argparse.Namespace) -> int:
     rng = random.Random(args.seed)
-    with httpx.Client(base_url=args.base_url, timeout=60) as client:
+    token = api_token()
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    with httpx.Client(base_url=args.base_url, timeout=60, headers=headers) as client:
         try:
             client.get("/healthz").raise_for_status()
         except httpx.HTTPError as exc:

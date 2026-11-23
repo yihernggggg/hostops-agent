@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import random
+import secrets
 import threading
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -34,6 +35,8 @@ from hostops.telemetry import HTTP_DURATION, REGISTRY, configure_logging, get_lo
 
 _log = get_logger("hostops.service")
 CHAOS_EXEMPT = ("/healthz", "/metrics", "/chaos")
+# Reachable without a token: the container health check and the deploy smoke test.
+OPEN_PATHS = frozenset({"/healthz"})
 
 
 # ---------------------------------------------------------------- request / response bodies
@@ -103,6 +106,12 @@ class Health(BaseModel):
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
     configure_logging(settings.log_level)
+    api_token = settings.resolved_api_token()
+    if api_token is None and not settings.auth_disabled:
+        raise RuntimeError(
+            "No API token: set HOSTOPS_API_TOKEN or HOSTOPS_API_TOKEN_FILE "
+            "(or HOSTOPS_AUTH_DISABLED=true for local experiments only)."
+        )
 
     chaos = ChaosState()
     store = IncidentStore()
@@ -148,14 +157,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 return str(getattr(route, "path", request.url.path))
         return "unmatched"
 
+    def authorized(request: Request) -> bool:
+        if api_token is None or request.url.path in OPEN_PATHS:
+            return True
+        scheme, _, credentials = request.headers.get("authorization", "").partition(" ")
+        return scheme.lower() == "bearer" and secrets.compare_digest(credentials.encode(), api_token.encode())
+
     @app.middleware("http")
     async def timing_and_chaos(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         start = time.perf_counter()
         route = route_template(request)
-        if not route.startswith(CHAOS_EXEMPT) and chaos.should_fail_http(rng):
-            response: Response = JSONResponse({"detail": "chaos: injected failure"}, status_code=500)
+        if not authorized(request):
+            response: Response = JSONResponse(
+                {"detail": "missing or invalid bearer token"},
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        elif not route.startswith(CHAOS_EXEMPT) and chaos.should_fail_http(rng):
+            response = JSONResponse({"detail": "chaos: injected failure"}, status_code=500)
             log(_log, logging.ERROR, "injected http failure", route=route, component="chaos")
         else:
             response = await call_next(request)
@@ -267,6 +288,3 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return sync.run()
 
     return app
-
-
-app = create_app()
