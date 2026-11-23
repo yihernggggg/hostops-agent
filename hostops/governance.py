@@ -182,7 +182,9 @@ class Governance:
         amount = "unspecified" if action.amount_sgd is None else f"SGD {action.amount_sgd:.2f}"
         escalation = ProposedAction(
             type=ActionType.ESCALATE_HOST,
-            reason=f"Refund of {amount} blocked by policy ({reason}); host to decide. Original: {action.reason}",
+            reason=(
+                f"Refund of {amount} blocked by policy ({reason}); host to decide. Original: {action.reason}"
+            ),
             status=ActionStatus.PROPOSED,
             policy_reason="converted from blocked refund",
         )

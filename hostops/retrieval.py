@@ -18,8 +18,51 @@ from hostops.models import ActionType, Category, Severity
 RUNBOOK_DIR = Path(__file__).parent / "runbooks"
 
 _STOPWORDS = frozenset(
-    "a an and are as at be but by for from has have i i'm im in is it it's its me my of on or our so "
-    "that the their there this to us was we were what when with you your".split()
+    [
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "but",
+        "by",
+        "for",
+        "from",
+        "has",
+        "have",
+        "i",
+        "i'm",
+        "im",
+        "in",
+        "is",
+        "it",
+        "it's",
+        "its",
+        "me",
+        "my",
+        "of",
+        "on",
+        "or",
+        "our",
+        "so",
+        "that",
+        "the",
+        "their",
+        "there",
+        "this",
+        "to",
+        "us",
+        "was",
+        "we",
+        "were",
+        "what",
+        "when",
+        "with",
+        "you",
+        "your",
+    ]
 )
 _TOKEN = re.compile(r"[a-z0-9]+(?:[-'][a-z0-9]+)*")
 
