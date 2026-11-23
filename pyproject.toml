@@ -49,7 +49,7 @@ select = [
 "hostops.service".msg = "Only tests may import hostops.service. The agent acts through tools, governance stays pure."
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "ANN", "TID251"]
+"tests/**" = ["S101", "S311", "ANN", "TID251"]
 "evals/**" = ["S101"]
 "scripts/**" = ["S311"]  # random is fine for synthetic traffic
 
