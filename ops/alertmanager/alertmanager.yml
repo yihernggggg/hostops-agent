@@ -1,0 +1,12 @@
+route:
+  receiver: hostops
+  group_by: [alertname]
+  group_wait: 10s        # batch the first notification briefly
+  group_interval: 1m
+  repeat_interval: 1h    # repeats are merged into the open incident, not re-opened
+
+receivers:
+  - name: hostops
+    webhook_configs:
+      - url: http://hostops:8000/alerts
+        send_resolved: true   # resolved alerts close the incident

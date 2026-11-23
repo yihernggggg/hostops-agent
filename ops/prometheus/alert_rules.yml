@@ -1,0 +1,43 @@
+# Each alert carries a `category` label so the triage agent knows which runbook family it belongs to.
+groups:
+  - name: hostops
+    rules:
+      - alert: CalendarSyncFailing
+        expr: increase(hostops_calendar_sync_total{result="failure"}[5m]) > 2
+        for: 15s
+        labels:
+          severity: high
+          category: system_calendar_sync
+        annotations:
+          summary: "Calendar sync failed {{ $value | printf \"%.0f\" }} times in the last 5 minutes"
+          description: "Booking calendar sync is failing; double-booking risk until it recovers."
+
+      - alert: AgentLatencyHigh
+        expr: >
+          histogram_quantile(0.9, sum by (le) (rate(hostops_agent_duration_seconds_bucket[5m]))) > 10
+        for: 1m
+        labels:
+          severity: medium
+          category: system_llm_latency
+        annotations:
+          summary: "Triage agent p90 latency is {{ $value | printf \"%.1f\" }}s (threshold 10s)"
+
+      - alert: ErrorRateHigh
+        expr: >
+          sum(rate(hostops_http_request_duration_seconds_count{status=~"5..", route!="/metrics"}[5m]))
+            / sum(rate(hostops_http_request_duration_seconds_count{route!="/metrics"}[5m])) > 0.05
+        for: 1m
+        labels:
+          severity: high
+          category: system_error_rate
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of HTTP requests are returning 5xx (threshold 5%)"
+
+      - alert: PendingApprovalsHigh
+        expr: hostops_pending_approvals > 5
+        for: 10m
+        labels:
+          severity: medium
+          category: system_error_rate
+        annotations:
+          summary: "{{ $value }} actions have been waiting for host approval for over 10 minutes"
