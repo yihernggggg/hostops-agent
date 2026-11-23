@@ -66,7 +66,9 @@ ops/                 prometheus.yml, alert_rules.yml, alertmanager.yml, grafana 
 tests/               pytest
 docker-compose.yml   service + prometheus + alertmanager + grafana
 Dockerfile
-.github/workflows/   ci.yml (Phase 2), deploy.yml (Phase 4)
+.github/workflows/   ci.yml, deploy.yml
+infra/hostops.yml    CloudFormation: EC2, ECR, GitHub OIDC deploy role
+docs/deploy.md       deploy architecture, trust policy, access, rollback
 ```
 
 ## Commands
@@ -213,8 +215,10 @@ Branch protection on `main`: required status checks from CI, no direct pushes. A
 **Done when:** a direct push to main is rejected.
 
 ### Phase 5: CD to AWS
-`.github/workflows/deploy.yml` on merge to main: authenticate with **GitHub OIDC** (no long-lived AWS keys stored
-in GitHub), build once, tag with the commit SHA, push to ECR, deploy to App Runner, then smoke-test `/healthz`.
+`infra/hostops.yml` (CloudFormation): one EC2 instance running the compose stack, an ECR repository, and a deploy
+role for GitHub OIDC (no long-lived AWS keys in GitHub). The instance has no inbound ports; the API, Grafana and
+Prometheus are reached through SSM port forwarding. `.github/workflows/deploy.yml` on merge to main: build once, tag
+with the commit SHA, push to ECR, deploy through SSM Run Command, then smoke-test `/healthz`.
 Document the IAM role trust policy (scoped to this repo and the `main` branch) in `docs/deploy.md`.
 Set an AWS billing alarm before the first deploy.
 **Done when:** merging a PR updates the live service and the smoke test passes. Rollback = redeploy the previous
