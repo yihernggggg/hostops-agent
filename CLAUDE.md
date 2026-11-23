@@ -48,8 +48,12 @@ hostops/
   calendar_sync.py   simulated booking calendar sync job
   retrieval.py       BM25 search over runbooks (no embedding dependency)
   governance.py      action risk policy, refund cap, audit log
+  pipeline.py        ingest -> agent -> governance -> store; shared by the service and evals
   agent/
-    llm.py           provider interface: Anthropic, OpenAI-compatible (Ollama), Offline (deterministic)
+    llm.py           provider interface: Anthropic, OpenAI-compatible (Ollama), chaos latency wrapper
+    offline.py       deterministic offline provider (retrieval + keyword rules)
+    prompt.py        system prompt; renders incidents as escaped, delimited untrusted data
+    injection.py     regex pre-screen that flags likely prompt injection
     tools.py         tool registry with JSON schemas
     loop.py          the agent loop: plan, call tool, observe, repeat, submit
   runbooks/*.md      house manual and ops runbooks, each with front matter (category, default actions)
@@ -68,8 +72,8 @@ Dockerfile
 ## Commands
 
 ```bash
-# Create and activate a virtual environment (-m venv: run the venv module; .venv: folder name)
-python3 -m venv .venv && source .venv/bin/activate
+# Create and activate a Python 3.12 virtual environment with uv (--seed: include pip in the venv)
+uv venv --seed --python 3.12 .venv && source .venv/bin/activate
 
 # Install the package in editable mode (-e) with dev and llm extras
 pip install -e ".[dev,llm]"
@@ -141,7 +145,7 @@ These are why the code can be written fast by an agent and still be trusted. Do 
 | `restart_sync` | low, internal, reversible | auto-execute |
 | `reply_guest` | guest-facing | requires approval |
 | `dispatch_vendor` | costs money | requires approval |
-| `refund` | costs money | requires approval; amounts over SGD 200 are blocked and converted to `escalate_host` |
+| `refund` | costs money | requires approval; the SGD 200 cap is **per incident** (this refund plus refunds already pending or executed on it); a refund that would exceed it is blocked and converted to `escalate_host` |
 
 - The policy is enforced in `governance.py` **after** the agent proposes, never by trusting the model.
 - Every tool call, proposal, policy decision, approval and rejection is appended to `audit.jsonl`
