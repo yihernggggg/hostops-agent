@@ -35,18 +35,24 @@ jobs:
       INSTANCE_ID: ${{ vars.INSTANCE_ID }}
       TOKEN_PARAMETER: /hostops/api-token
     steps:
-      - name: Resolve the commit to deploy
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0  # full history of main, for the ancestry check below
+
+      - name: Resolve the commit and prove it is on main
         env:
           INPUT_SHA: ${{ inputs.sha }}
         run: |
           SHA="${INPUT_SHA:-$GITHUB_SHA}"
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha must be a full 40-character commit hash"; exit 1; }
+          # Fork and unmerged-PR commits can be fetched by SHA through this repo, so a well-formed SHA is not
+          # enough: only commits reachable from main (reviewed and CI-gated) may be deployed.
+          git merge-base --is-ancestor "$SHA" origin/main \
+            || { echo "::error::$SHA is not on main; only merged commits can be deployed"; exit 1; }
+          git checkout --quiet --detach "$SHA"
           echo "SHA=$SHA" >> "$GITHUB_ENV"
           echo "IMAGE=$ECR_REPOSITORY_URI:$SHA" >> "$GITHUB_ENV"
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          ref: ${{ env.SHA }}
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
         with:

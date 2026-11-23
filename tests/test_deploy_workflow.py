@@ -52,3 +52,14 @@ def test_every_action_in_the_credentialed_job_is_pinned_to_a_commit() -> None:
     assert uses
     for ref in uses:
         assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", ref), ref
+
+
+def test_only_commits_already_on_main_can_be_deployed() -> None:
+    # Fork and unmerged-PR commits are fetchable by SHA through the parent repo; rollback input must be
+    # proven to be on main before anything is built or deployed.
+    assert "fetch-depth: 0" in WORKFLOW
+    check = WORKFLOW.index('git merge-base --is-ancestor "$SHA" origin/main')
+    assert check < WORKFLOW.index("docker build")
+    assert check < WORKFLOW.index("send-command")
+    assert re.search(r"ref:\s*main\b", WORKFLOW)
+    assert "ref: ${{ env.SHA }}" not in WORKFLOW  # checkout happens only after the ancestry check
