@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from hostops import telemetry
 from hostops.agent.llm import ToolSpec
-from hostops.models import ActionDraft, Category, Severity
+from hostops.models import ActionDraft, Category, Severity, Source
 from hostops.retrieval import RunbookIndex
 
 SUBMIT_TRIAGE = "submit_triage"
@@ -59,6 +59,9 @@ class ToolContext:
 
     index: RunbookIndex
     incident_id: str
+    # Guest incidents carry untrusted text, so their runs may only read their own incident's logs.
+    # Defaults to the restricted scope: forgetting to pass a source fails closed.
+    source: Source = Source.GUEST
     logs: telemetry.LogBuffer = field(default_factory=lambda: telemetry.LOG_BUFFER)
     drafts: list[ActionDraft] = field(default_factory=list)
 
@@ -90,7 +93,8 @@ def _query_metrics(ctx: ToolContext, args: QueryMetricsArgs) -> str:
 
 
 def _search_logs(ctx: ToolContext, args: SearchLogsArgs) -> str:
-    return _dump(ctx.logs.search(args.query, args.incident_id, args.level, args.limit))
+    incident_id = ctx.incident_id if ctx.source is Source.GUEST else args.incident_id
+    return _dump(ctx.logs.search(args.query, incident_id, args.level, args.limit))
 
 
 def _propose_action(ctx: ToolContext, args: ActionDraft) -> str:

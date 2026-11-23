@@ -60,7 +60,9 @@ def audit(tmp_path: Path) -> AuditLog:
 
 
 def make_agent(provider: Scripted, audit: AuditLog) -> TriageAgent:
-    return TriageAgent(provider, lambda inc: ToolContext(index=INDEX, incident_id=inc.id), audit=audit)
+    return TriageAgent(
+        provider, lambda inc: ToolContext(index=INDEX, incident_id=inc.id, source=inc.source), audit=audit
+    )
 
 
 # ---------------------------------------------------------------- happy paths
@@ -178,3 +180,33 @@ def test_injection_is_flagged_on_result_and_noted(audit: AuditLog) -> None:
     assert result.injection_suspected is True
     assert ActionType.NOTE in [a.type for a in result.proposed_actions]
     assert 'injection_suspected="true"' in provider.seen[0][0].content
+
+
+# ---------------------------------------------------------------- tool scoping
+
+
+def test_guest_runs_can_only_search_their_own_logs() -> None:
+    import json
+
+    from hostops.agent.tools import run_tool
+    from hostops.models import Source
+
+    log = telemetry.get_logger("hostops.test")
+    telemetry.log(log, 20, "would execute reply_guest", incident_id="inc_other", message="secret")
+    telemetry.log(log, 20, "own line", incident_id="inc_mine")
+
+    guest_ctx = ToolContext(index=INDEX, incident_id="inc_mine", source=Source.GUEST)
+    out = json.loads(run_tool(guest_ctx, "search_logs", {"incident_id": "inc_other"}))
+    assert {r["incident_id"] for r in out} <= {"inc_mine"}
+    out = json.loads(run_tool(guest_ctx, "search_logs", {}))
+    assert {r["incident_id"] for r in out} <= {"inc_mine"}
+
+    system_ctx = ToolContext(index=INDEX, incident_id="inc_sys", source=Source.SYSTEM)
+    out = json.loads(run_tool(system_ctx, "search_logs", {"incident_id": "inc_other"}))
+    assert [r["incident_id"] for r in out] == ["inc_other"]
+
+
+def test_tool_context_defaults_to_the_restricted_scope() -> None:
+    from hostops.models import Source
+
+    assert ToolContext(index=INDEX, incident_id="x").source is Source.GUEST
