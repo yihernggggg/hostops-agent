@@ -110,7 +110,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     index = RunbookIndex.load()
     agent = TriageAgent(
         make_provider(settings, chaos),
-        lambda inc: ToolContext(index=index, incident_id=inc.id),
+        lambda inc: ToolContext(index=index, incident_id=inc.id, source=inc.source),
         audit=audit,
         max_steps=settings.max_agent_steps,
     )

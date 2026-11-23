@@ -39,7 +39,9 @@ def audit(tmp_path: Path) -> AuditLog:
 @pytest.fixture
 def agent(audit: AuditLog) -> TriageAgent:
     return TriageAgent(
-        OfflineProvider(), lambda inc: ToolContext(index=INDEX, incident_id=inc.id), audit=audit
+        OfflineProvider(),
+        lambda inc: ToolContext(index=INDEX, incident_id=inc.id, source=inc.source),
+        audit=audit,
     )
 
 
