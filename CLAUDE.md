@@ -96,8 +96,11 @@ python -m evals.run --provider offline
 # Run the eval suite against a real model (needs ANTHROPIC_API_KEY or OLLAMA_BASE_URL)
 python -m evals.run --provider anthropic
 
-# Start the API locally with auto-reload on code changes (--reload)
-uvicorn hostops.service:app --reload
+# Create the API bearer token once (secrets/ is gitignored); the service refuses to start without one
+mkdir -p secrets && python3 -c "import secrets; print(secrets.token_urlsafe(32))" > secrets/api_token
+
+# Start the API locally with auto-reload (--factory: create_app builds the app; --reload: restart on changes)
+HOSTOPS_API_TOKEN_FILE=secrets/api_token uvicorn hostops.service:create_app --factory --reload
 
 # Bring up service, Prometheus, Alertmanager, Grafana in the background (-d: detached; --build: rebuild images)
 docker compose up -d --build
