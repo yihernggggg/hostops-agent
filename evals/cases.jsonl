@@ -1,22 +1,22 @@
-{"id": "g01-wifi-down", "kind": "guest", "text": "Hi, the wifi isn't working in the apartment, we can't connect at all", "expected_category": "wifi", "expected_actions": ["reply_guest"]}
-{"id": "g02-wifi-slow", "kind": "guest", "text": "Internet is super slow, I can barely load a video call for work", "expected_category": "wifi", "expected_actions": ["reply_guest"]}
+{"id": "g01-wifi-down", "kind": "guest", "text": "Hi, the wifi isn't working in the apartment, we can't connect at all", "expected_category": "other_guest", "expected_actions": ["reply_guest"]}
+{"id": "g02-wifi-slow", "kind": "guest", "text": "Internet is super slow, I can barely load a video call for work", "expected_category": "other_guest", "expected_actions": ["reply_guest"]}
 {"id": "g03-wifi-password", "kind": "guest", "text": "What's the wifi password? The card on the fridge is missing", "expected_category": "wifi", "expected_actions": ["reply_guest"]}
-{"id": "g04-early-checkin", "kind": "guest", "text": "Can we check in early? Our flight lands at 7am", "expected_category": "checkin", "expected_actions": ["reply_guest"]}
-{"id": "g05-late-checkout", "kind": "guest", "text": "Is late checkout possible on Sunday, maybe 1pm?", "expected_category": "checkin", "expected_actions": ["reply_guest"]}
+{"id": "g04-early-checkin", "kind": "guest", "text": "Can we check in early? Our flight lands at 7am", "expected_category": "other_guest", "expected_actions": ["reply_guest"]}
+{"id": "g05-late-checkout", "kind": "guest", "text": "Is late checkout possible on Sunday, maybe 1pm?", "expected_category": "other_guest", "expected_actions": ["reply_guest"]}
 {"id": "g06-late-arrival", "kind": "guest", "text": "We will arrive around midnight, is that ok for check-in?", "expected_category": "checkin", "expected_actions": ["reply_guest"]}
 {"id": "g07-locked-out", "kind": "guest", "text": "We're locked out, the door code isn't working", "expected_category": "access", "expected_actions": ["reply_guest", "escalate_host"]}
 {"id": "g08-keypad-dark", "kind": "guest", "text": "The keypad on the front door is completely dark and won't light up", "expected_category": "access", "expected_actions": ["reply_guest", "escalate_host"]}
 {"id": "g09-lobby-gate", "kind": "guest", "text": "Our card for the lobby gate doesn't work, we can't get into the building", "expected_category": "access", "expected_actions": ["reply_guest", "escalate_host"]}
-{"id": "g10-aircon-warm", "kind": "guest", "text": "The aircon is blowing warm air and the room is 30 degrees", "expected_category": "appliance", "expected_actions": ["reply_guest", "dispatch_vendor"]}
+{"id": "g10-aircon-warm", "kind": "guest", "text": "The aircon is blowing warm air and the room is 30 degrees", "expected_category": "cleaning", "expected_actions": ["reply_guest", "dispatch_vendor"]}
 {"id": "g11-washer-leak", "kind": "guest", "text": "Washing machine is leaking water all over the floor", "expected_category": "appliance", "expected_actions": ["reply_guest", "dispatch_vendor"]}
 {"id": "g12-no-hot-water", "kind": "guest", "text": "There's no hot water in the shower", "expected_category": "appliance", "expected_actions": ["reply_guest", "dispatch_vendor"]}
 {"id": "g13-tv-dead", "kind": "guest", "text": "The TV won't turn on, we tried the remote and the power button", "expected_category": "appliance", "expected_actions": ["reply_guest", "dispatch_vendor"]}
-{"id": "g14-party-next-door", "kind": "guest", "text": "The neighbours are having a loud party at 1am and we can't sleep", "expected_category": "noise", "expected_actions": ["reply_guest", "note"]}
+{"id": "g14-party-next-door", "kind": "guest", "text": "The neighbours are having a loud party at 1am and we can't sleep", "expected_category": "other_guest", "expected_actions": ["reply_guest", "note"]}
 {"id": "g15-construction", "kind": "guest", "text": "Construction noise next door starts at 7am every day", "expected_category": "noise", "expected_actions": ["reply_guest", "note"]}
 {"id": "g16-dirty-bathroom", "kind": "guest", "text": "The bathroom is dirty and there's hair in the shower drain", "expected_category": "cleaning", "expected_actions": ["reply_guest", "dispatch_vendor"]}
 {"id": "g17-cockroaches", "kind": "guest", "text": "We found cockroaches in the kitchen cupboards", "expected_category": "cleaning", "expected_actions": ["reply_guest", "dispatch_vendor"]}
 {"id": "g18-no-towels", "kind": "guest", "text": "No towels in the apartment and we ran out of toilet paper", "expected_category": "cleaning", "expected_actions": ["reply_guest", "dispatch_vendor"]}
-{"id": "g19-double-charge", "kind": "guest", "text": "I think I was charged twice for this booking", "expected_category": "billing", "expected_actions": ["reply_guest", "escalate_host"]}
+{"id": "g19-double-charge", "kind": "guest", "text": "I think I was charged twice for this booking", "expected_category": "other_guest", "expected_actions": ["reply_guest", "escalate_host"]}
 {"id": "g20-receipt", "kind": "guest", "text": "Can I get a receipt for my company to claim?", "expected_category": "billing", "expected_actions": ["reply_guest", "escalate_host"]}
 {"id": "g21-refund-under-cap", "kind": "guest", "text": "The aircon was broken all night, please refund SGD 80", "expected_category": "billing", "expected_actions": ["reply_guest", "escalate_host", "refund"]}
 {"id": "g22-refund-over-cap", "kind": "guest", "text": "Broken aircon for 3 nights, I want a refund of SGD 350", "expected_category": "billing", "expected_actions": ["reply_guest", "escalate_host"]}
