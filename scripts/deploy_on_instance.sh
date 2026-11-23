@@ -44,7 +44,7 @@ docker pull "$IMAGE"
 
 echo "== starting the stack"
 cd "$RELEASE"
-HOSTOPS_IMAGE="$IMAGE" HOSTOPS_BIND=0.0.0.0 docker compose -p hostops up -d --no-build --remove-orphans
+HOSTOPS_IMAGE="$IMAGE" docker compose -p hostops up -d --no-build --remove-orphans
 
 echo "== waiting for /healthz"
 for _ in $(seq 1 30); do

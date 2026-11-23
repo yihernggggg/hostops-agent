@@ -1,7 +1,7 @@
 # Local monitoring stack: service + Prometheus + Alertmanager + Grafana.
 # Host ports are overridable, e.g. HOSTOPS_PORT=8001 docker compose up -d --build
-# Ports bind to 127.0.0.1. Only the API can be rebound (HOSTOPS_BIND=0.0.0.0 on EC2, behind a security group);
-# Grafana (local admin/admin), Prometheus and Alertmanager always stay on loopback.
+# Ports bind to 127.0.0.1 only, here and on EC2 (reached there through an SSM port forward): the API token
+# travels over plain HTTP and Grafana uses admin/admin.
 services:
   hostops:
     build: .
@@ -14,7 +14,7 @@ services:
       # Only read when HOSTOPS_PROVIDER=anthropic; comes from your shell, never from this file.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
-      - "${HOSTOPS_BIND:-127.0.0.1}:${HOSTOPS_PORT:-8000}:8000"
+      - "127.0.0.1:${HOSTOPS_PORT:-8000}:8000"
     secrets: [api_token]
     volumes:
       - hostops-data:/data

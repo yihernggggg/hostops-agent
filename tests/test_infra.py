@@ -18,16 +18,13 @@ def block(name: str) -> str:
     return match.group(1)
 
 
-def test_no_ingress_from_the_whole_internet_and_no_ssh() -> None:
-    ingress = block("ApiSecurityGroup").split("SecurityGroupIngress:")[1].split("SecurityGroupEgress")[0]
-    assert "0.0.0.0/0" not in ingress
-    assert "::/0" not in ingress
-    assert not re.search(r"(FromPort|ToPort):\s*22\b", ingress)
-    assert re.findall(r"FromPort:\s*(\d+)", ingress) == ["8000"]
-
-
-def test_allowed_cidr_cannot_be_wider_than_a_slash_24() -> None:
-    assert r"/(2[4-9]|3[0-2])$" in block("AllowedCidr")
+def test_instance_accepts_no_inbound_traffic() -> None:
+    # Everything (API, Grafana, Prometheus) is reached through SSM port forwarding. A bearer token
+    # over plain HTTP would be readable on the network path, so nothing is published.
+    sg = block("InstanceSecurityGroup")
+    assert "SecurityGroupIngress" not in sg
+    assert "AWS::EC2::SecurityGroupIngress" not in TEMPLATE
+    assert "AllowedCidr" not in TEMPLATE
 
 
 def test_imdsv2_required_and_containers_cannot_reach_it() -> None:

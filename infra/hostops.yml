@@ -1,8 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   hostops-agent on one EC2 instance running docker compose (service, Prometheus, Alertmanager, Grafana).
-  GitHub Actions deploys via OIDC: push image to ECR, then SSM Run Command on the instance. No SSH, no
-  long-lived AWS keys. Only the API port is reachable, and only from AllowedCidr.
+  GitHub Actions deploys via OIDC: push image to ECR, then SSM Run Command on the instance. No inbound
+  ports at all: the API, Grafana and Prometheus are reached through SSM port forwarding. No SSH, no
+  long-lived AWS keys.
 
 Metadata:
   com.aws.cloudformation.Context:
@@ -10,7 +11,7 @@ Metadata:
       Smallest AWS footprint that runs the whole monitoring stack unchanged. Free-tier instance type,
       default VPC, no load balancer or NAT so idle cost stays near zero.
     must:
-      - Never open ingress to 0.0.0.0/0; the API has a bearer token but is still not meant to be public.
+      - No inbound rules. The API token is sent over plain HTTP, so the API is only reached through SSM.
       - Deploy role must stay scoped to refs/heads/main of the GitHub repo.
       - No SSH; operators use SSM Session Manager.
 
@@ -18,11 +19,6 @@ Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id
     Description: VPC for the security group (the default VPC is fine; the instance uses its default subnet).
-  AllowedCidr:
-    Type: String
-    Description: The only source allowed to reach the API port, e.g. your public IP as a.b.c.d/32.
-    AllowedPattern: ^(\d{1,3}\.){3}\d{1,3}/(2[4-9]|3[0-2])$
-    ConstraintDescription: Must be an IPv4 CIDR no wider than /24.
   InstanceType:
     Type: String
     Default: t3.small
@@ -69,22 +65,18 @@ Resources:
           "selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":15},
           "action":{"type":"expire"}}]}
 
-  ApiSecurityGroup:
+  InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Metadata:
       com.aws.cloudformation.Context:
-        why: Only the API is exposed. Grafana and Prometheus are reached through SSM port forwarding.
+        why: >-
+          Outbound only. Operators reach the API, Grafana and Prometheus through SSM port forwarding,
+          which is encrypted and authenticated by IAM.
         must:
-          - No port 22 and no 0.0.0.0/0 ingress.
+          - No ingress rules at all (no SSH, no API port).
     Properties:
-      GroupDescription: hostops API port from AllowedCidr only
+      GroupDescription: hostops instance, outbound only (access via SSM)
       VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 8000
-          ToPort: 8000
-          CidrIp: !Ref AllowedCidr
-          Description: hostops API
       SecurityGroupEgress:
         - IpProtocol: tcp
           FromPort: 443
@@ -175,7 +167,7 @@ Resources:
       ImageId: !Ref LatestAmiId
       InstanceType: !Ref InstanceType
       IamInstanceProfile: !Ref InstanceProfile
-      SecurityGroupIds: [!GetAtt ApiSecurityGroup.GroupId]
+      SecurityGroupIds: [!GetAtt InstanceSecurityGroup.GroupId]
       LaunchTemplate:
         LaunchTemplateId: !Ref LaunchTemplate
         Version: !GetAtt LaunchTemplate.LatestVersionNumber
