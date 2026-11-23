@@ -9,6 +9,7 @@ python scripts/simulate.py --scenario llm_slow | error_spike
 from __future__ import annotations
 
 import argparse
+import os
 import random
 import sys
 import time
@@ -113,18 +114,26 @@ def run(args: argparse.Namespace) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="hostops synthetic traffic")
-    parser.add_argument("--base-url", default="http://localhost:8000")
+    parser.add_argument("--base-url", default=os.environ.get("HOSTOPS_BASE_URL", "http://localhost:8000"))
     parser.add_argument("--scenario", choices=SCENARIOS, default="normal")
     parser.add_argument("--count", type=int, default=10, help="guest messages to send")
     parser.add_argument("--interval", type=float, default=0.2, help="seconds between messages")
-    parser.add_argument("--duration", type=float, default=0, help="seconds to hold chaos before resetting")
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=None,
+        help="seconds to hold chaos before resetting (default 120 for chaos scenarios, enough for an alert)",
+    )
     parser.add_argument("--llm-latency", type=float, default=12.0)
     parser.add_argument(
         "--fake-alert", action="store_true", help="post an Alertmanager-shaped alert directly"
     )
     parser.add_argument("--keep-chaos", action="store_true", help="leave chaos on at the end")
     parser.add_argument("--seed", type=int, default=7)
-    return run(parser.parse_args())
+    args = parser.parse_args()
+    if args.duration is None:
+        args.duration = 0 if args.scenario == "normal" or args.fake_alert else 120
+    return run(args)
 
 
 if __name__ == "__main__":
