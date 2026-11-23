@@ -16,7 +16,7 @@ def test_triggers_on_main_and_manual_rollback_only() -> None:
 
 def test_uses_oidc_and_no_stored_aws_keys() -> None:
     assert re.search(r"^permissions:\s*\n\s*contents:\s*read\s*\n\s*id-token:\s*write\s*$", WORKFLOW, re.M)
-    assert "aws-actions/configure-aws-credentials@v6" in WORKFLOW
+    assert "aws-actions/configure-aws-credentials@" in WORKFLOW
     assert "role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}" in WORKFLOW
     for forbidden in ("aws-access-key-id", "aws-secret-access-key", "AWS_SECRET_ACCESS_KEY", "secrets."):
         assert forbidden not in WORKFLOW, forbidden
@@ -44,3 +44,11 @@ def test_deploy_runs_the_repo_script_and_a_separate_smoke_test() -> None:
     assert "scripts/deploy_on_instance.sh" in WORKFLOW
     assert re.search(r"name: Smoke test /healthz", WORKFLOW)
     assert "http://127.0.0.1:8000/healthz" in WORKFLOW
+
+
+def test_every_action_in_the_credentialed_job_is_pinned_to_a_commit() -> None:
+    # This job holds AWS credentials: a moved tag must not be able to change the code it runs.
+    uses = re.findall(r"uses:\s*(\S+)", WORKFLOW)
+    assert uses
+    for ref in uses:
+        assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", ref), ref

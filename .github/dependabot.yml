@@ -1,0 +1,7 @@
+# Weekly PRs to update GitHub Actions, including the SHA-pinned actions in deploy.yml.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
