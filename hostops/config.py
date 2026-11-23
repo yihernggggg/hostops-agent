@@ -14,7 +14,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="HOSTOPS_", extra="ignore")
 
     provider: ProviderName = "offline"
-    anthropic_model: str = "claude-sonnet-5-5"
+    anthropic_model: str = "claude-opus-5-5"
+    # Opus 5.5 defaults to medium; set explicitly so the eval baseline is reproducible.
+    anthropic_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
     # Any OpenAI-compatible endpoint. Ollama serves one at /v1.
     openai_base_url: str = "http://localhost:11434/v1"
     openai_model: str = "llama3.1"
