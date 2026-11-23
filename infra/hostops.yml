@@ -1,0 +1,264 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  hostops-agent on one EC2 instance running docker compose (service, Prometheus, Alertmanager, Grafana).
+  GitHub Actions deploys via OIDC: push image to ECR, then SSM Run Command on the instance. No SSH, no
+  long-lived AWS keys. Only the API port is reachable, and only from AllowedCidr.
+
+Metadata:
+  com.aws.cloudformation.Context:
+    why: >-
+      Smallest AWS footprint that runs the whole monitoring stack unchanged. Free-tier instance type,
+      default VPC, no load balancer or NAT so idle cost stays near zero.
+    must:
+      - Never open ingress to 0.0.0.0/0; the API has a bearer token but is still not meant to be public.
+      - Deploy role must stay scoped to refs/heads/main of the GitHub repo.
+      - No SSH; operators use SSM Session Manager.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC for the security group (the default VPC is fine; the instance uses its default subnet).
+  AllowedCidr:
+    Type: String
+    Description: The only source allowed to reach the API port, e.g. your public IP as a.b.c.d/32.
+    AllowedPattern: ^(\d{1,3}\.){3}\d{1,3}/(2[4-9]|3[0-2])$
+    ConstraintDescription: Must be an IPv4 CIDR no wider than /24.
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues: [t3.micro, t3.small]
+    Description: Free-tier eligible x86_64 types. t3.small (2 GiB) fits the four containers comfortably.
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  GitHubRepo:
+    Type: String
+    Default: yihernggggg/hostops-agent
+    AllowedPattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+  ApiTokenParameterName:
+    Type: String
+    Default: /hostops/api-token
+    AllowedPattern: ^/[A-Za-z0-9_./-]+$
+    Description: SSM SecureString holding the API bearer token (created outside the template).
+  ComposeVersion:
+    Type: String
+    Default: v5.7.0
+  ComposeSha256:
+    Type: String
+    Default: 7758048ad38e580f22559603312874fec8bb638d021a9e64182385fc17cc12a2
+    AllowedPattern: ^[a-f0-9]{64}$
+
+Resources:
+  ImageRepository:
+    Type: AWS::ECR::Repository
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Images are tagged with the git commit SHA; rollback redeploys an older tag.
+        must:
+          - Tags stay immutable so a SHA always means the same image.
+    Properties:
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      EmptyOnDelete: true
+      LifecyclePolicy:
+        LifecyclePolicyText: >-
+          {"rules":[{"rulePriority":1,"description":"Keep the 15 most recent images",
+          "selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":15},
+          "action":{"type":"expire"}}]}
+
+  ApiSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Only the API is exposed. Grafana and Prometheus are reached through SSM port forwarding.
+        must:
+          - No port 22 and no 0.0.0.0/0 ingress.
+    Properties:
+      GroupDescription: hostops API port from AllowedCidr only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          CidrIp: !Ref AllowedCidr
+          Description: hostops API
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS out (ECR, SSM, GitHub, dnf mirrors)
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP out (dnf mirrors)
+        - IpProtocol: udp
+          FromPort: 123
+          ToPort: 123
+          CidrIp: 169.254.169.123/32
+          Description: Amazon Time Sync
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: SSM agent registration, pulling this one ECR repo, and reading the API token parameter.
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: pull-image-and-read-token
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchCheckLayerAvailability
+                Resource: !GetAtt ImageRepository.Arn
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ApiTokenParameterName}
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: >-
+          IMDSv2 only, hop limit 1 so containers cannot read the instance role credentials.
+          Encrypted gp3 root volume sized for images plus Prometheus data.
+    Properties:
+      LaunchTemplateData:
+        MetadataOptions:
+          HttpTokens: required
+          HttpPutResponseHopLimit: 1
+          HttpEndpoint: enabled
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 20
+              VolumeType: gp3
+              Encrypted: true
+              DeleteOnTermination: true
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: >-
+          User data only installs Docker and the pinned compose plugin (checksum verified).
+          The app itself arrives later through the deploy workflow.
+        mutability:
+          - path: Properties.UserData
+            value: replace-on-change
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SecurityGroupIds: [!GetAtt ApiSecurityGroup.GroupId]
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          dnf install -y docker
+          systemctl enable --now docker
+          mkdir -p /usr/local/lib/docker/cli-plugins
+          curl -fsSL -o /tmp/docker-compose \
+            "https://github.com/docker/compose/releases/download/${ComposeVersion}/docker-compose-linux-x86_64"
+          echo "${ComposeSha256}  /tmp/docker-compose" | sha256sum -c -
+          install -m 0755 /tmp/docker-compose /usr/local/lib/docker/cli-plugins/docker-compose
+          mkdir -p /opt/hostops && chmod 0750 /opt/hostops
+
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Lets GitHub Actions exchange its OIDC token for short-lived AWS credentials.
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Assumed by the deploy workflow; pushes one ECR repo and runs commands on one instance.
+        must:
+          - Trust stays limited to repo:<GitHubRepo>:ref:refs/heads/main and audience sts.amazonaws.com.
+    Properties:
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref GitHubOidcProvider
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:ref:refs/heads/main
+      Policies:
+        - PolicyName: push-image-and-deploy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:DescribeImages
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:PutImage
+                Resource: !GetAtt ImageRepository.Arn
+              - Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript
+              - Effect: Allow
+                Action:
+                  - ssm:GetCommandInvocation
+                  - ssm:ListCommandInvocations
+                Resource: "*"
+
+Outputs:
+  InstanceId:
+    Value: !Ref Instance
+  PublicDnsName:
+    Value: !GetAtt Instance.PublicDnsName
+  EcrRepositoryUri:
+    Value: !GetAtt ImageRepository.RepositoryUri
+  DeployRoleArn:
+    Value: !GetAtt DeployRole.Arn
