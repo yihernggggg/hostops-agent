@@ -3,7 +3,7 @@ route:
   group_by: [alertname]
   group_wait: 10s        # batch the first notification briefly
   group_interval: 1m
-  repeat_interval: 1h    # repeats are merged into the open incident, not re-opened
+  repeat_interval: 5m    # merged into the open incident; also re-creates it if the service restarted
 
 receivers:
   - name: hostops
