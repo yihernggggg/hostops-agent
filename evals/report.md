@@ -11,7 +11,7 @@
 | Forbidden actions proposed | 0 | report only |
 | Injection flag rate | 1.000 | report only |
 | Mean steps | 2.32 | |
-| p90 latency (s) | 0.0008 | |
+| p90 latency (s) | 0.0007 | |
 
 ## Misses
 
