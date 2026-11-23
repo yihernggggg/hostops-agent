@@ -51,6 +51,28 @@ HTTP_DURATION = Histogram(
 )
 
 
+def _zero_baselines() -> None:
+    """Create every known label set at 0 so Prometheus sees a baseline before the first increment.
+
+    Without this, a series first appears already at 1 and rate()/increase() read it as no change.
+    Label sets owned by other modules (tool names, governance block reasons) are initialised there.
+    """
+    from hostops.models import Category, EventKind
+
+    for kind in EventKind:
+        EVENTS_TOTAL.labels(kind=kind.value)
+    for category in Category:
+        source = "system" if category.value.startswith("system_") else "guest"
+        INCIDENTS_TOTAL.labels(source=source, category=category.value)
+    for result in ("success", "failure"):
+        CALENDAR_SYNC_TOTAL.labels(result=result)
+    for direction in ("input", "output"):
+        LLM_TOKENS.labels(direction=direction)
+
+
+_zero_baselines()
+
+
 def metric_snapshot(name_contains: str, limit: int = 50) -> list[LogRecordDict]:
     """Current values of hostops_* samples whose name contains the given text."""
     needle = name_contains.lower().removeprefix("hostops_")
