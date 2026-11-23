@@ -168,6 +168,9 @@ TOOLS: dict[str, _Tool] = {
     ]
 }
 
+for _name in [*TOOLS, "unknown"]:  # zero baselines; see telemetry._zero_baselines
+    telemetry.AGENT_TOOL_CALLS.labels(tool=_name)
+
 
 def tool_specs() -> list[ToolSpec]:
     return [t.spec for t in TOOLS.values()]

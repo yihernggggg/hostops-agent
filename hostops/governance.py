@@ -20,8 +20,14 @@ from hostops.models import ActionDraft, ActionStatus, ActionType, ProposedAction
 from hostops.telemetry import GOVERNANCE_BLOCKS, get_logger, log
 
 REFUND_CAP_SGD = 200.0
+REFUND_OVER_CAP = "refund_over_cap"
+REFUND_MISSING_AMOUNT = "refund_missing_amount"
+BLOCK_REASONS = (REFUND_OVER_CAP, REFUND_MISSING_AMOUNT)
 
 _log = get_logger("hostops.governance")
+
+for _reason in BLOCK_REASONS:  # zero baselines; see telemetry._zero_baselines
+    GOVERNANCE_BLOCKS.labels(reason=_reason)
 
 
 class Risk(StrEnum):
@@ -107,9 +113,9 @@ def _refund_block_reason(action: ActionDraft, already_committed_sgd: float = 0.0
     if action.type is not ActionType.REFUND:
         return None
     if action.amount_sgd is None:
-        return "refund_missing_amount"
+        return REFUND_MISSING_AMOUNT
     if already_committed_sgd + action.amount_sgd > REFUND_CAP_SGD:
-        return "refund_over_cap"
+        return REFUND_OVER_CAP
     return None
 
 

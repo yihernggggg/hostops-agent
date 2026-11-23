@@ -102,3 +102,31 @@ def test_calendar_sync_success_and_failure_are_counted_and_logged() -> None:
     assert sample("hostops_calendar_sync_total", result="success") == ok_before + 1
     assert sample("hostops_calendar_sync_total", result="failure") == fail_before + 1
     assert telemetry.LOG_BUFFER.search(query="calendar sync failed", level="ERROR")
+
+
+# ---------------------------------------------------------------- zero baselines
+
+
+def test_known_label_sets_start_at_zero_so_rate_and_increase_work() -> None:
+    """Prometheus can't compute increase() for a series it first sees mid-flight (no 0 baseline).
+
+    Regression: the Grafana incidents panel read 0 after 7 incidents because each
+    (source, category) series was born at 1.
+    """
+    import hostops.agent.tools as tools
+    import hostops.governance as governance
+    from hostops.models import Category, EventKind
+
+    def exists(name: str, **labels: str) -> bool:
+        return telemetry.REGISTRY.get_sample_value(name, labels) is not None
+
+    assert all(exists("hostops_events_total", kind=k.value) for k in EventKind)
+    for c in Category:
+        source = "system" if c.value.startswith("system_") else "guest"
+        assert exists("hostops_incidents_total", source=source, category=c.value), c
+    assert exists("hostops_calendar_sync_total", result="success")
+    assert exists("hostops_calendar_sync_total", result="failure")
+    assert all(exists("hostops_agent_tool_calls_total", tool=t) for t in [*tools.TOOLS, "unknown"])
+    assert exists("hostops_llm_tokens_total", direction="input")
+    assert exists("hostops_llm_tokens_total", direction="output")
+    assert all(exists("hostops_governance_blocks_total", reason=r) for r in governance.BLOCK_REASONS)
