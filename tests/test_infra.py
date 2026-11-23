@@ -37,7 +37,9 @@ def test_imdsv2_required_and_containers_cannot_reach_it() -> None:
 def test_deploy_role_trusts_only_main_of_this_repo() -> None:
     role = block("DeployRole")
     assert "token.actions.githubusercontent.com:aud: sts.amazonaws.com" in role
-    assert "token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:ref:refs/heads/main" in role
+    # GitHub's immutable subject format: owner and repo carry their numeric IDs, so a re-created repo or
+    # account with the same name cannot assume the role.
+    assert "token.actions.githubusercontent.com:sub: !Sub ${GitHubSubjectPrefix}:ref:refs/heads/main" in role
     assert "StringLike" not in role  # no wildcards in the trust condition
     assert "AdministratorAccess" not in role
 
@@ -61,3 +63,9 @@ def test_compose_plugin_download_is_checksum_verified() -> None:
     user_data = block("Instance")
     assert "sha256sum -c -" in user_data
     assert "${ComposeSha256}" in user_data
+
+
+def test_subject_prefix_defaults_to_the_immutable_ids_of_this_repo() -> None:
+    prefix = block("GitHubSubjectPrefix")
+    assert "Default: repo:yihernggggg@165023723/hostops-agent@1468683679" in prefix
+    assert r"^repo:[A-Za-z0-9_.-]+@[0-9]+/[A-Za-z0-9_.-]+@[0-9]+$" in prefix
