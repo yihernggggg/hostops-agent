@@ -6,10 +6,14 @@ Kept separate from the HTTP layer so evals and tests drive exactly the same path
 from __future__ import annotations
 
 from hostops.agent.loop import TriageAgent
-from hostops.governance import Governance, GovernanceError
+from hostops.governance import Governance
 from hostops.models import ActionStatus, Event, EventKind, Incident, IncidentStatus, ProposedAction
 from hostops.store import IncidentNotFoundError, IncidentStore
 from hostops.telemetry import EVENTS_TOTAL, INCIDENTS_TOTAL, PENDING_APPROVALS
+
+
+class ActionNotFoundError(KeyError):
+    pass
 
 
 class TriagePipeline:
@@ -123,7 +127,7 @@ class TriagePipeline:
         for action in incident.actions:
             if action.id == action_id:
                 return action
-        raise GovernanceError(f"action {action_id} not found on incident {incident_id}")
+        raise ActionNotFoundError(f"action {action_id} not found on incident {incident_id}")
 
     def _require(self, incident_id: str) -> Incident:
         incident = self.store.get(incident_id)
