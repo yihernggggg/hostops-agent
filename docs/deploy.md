@@ -32,14 +32,19 @@ merge to main ──▶ GitHub Actions ──OIDC──▶ IAM DeployRole (main 
   "Condition": {
     "StringEquals": {
       "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-      "token.actions.githubusercontent.com:sub": "repo:yihernggggg/hostops-agent:ref:refs/heads/main"
+      "token.actions.githubusercontent.com:sub": "repo:yihernggggg@165023723/hostops-agent@1468683679:ref:refs/heads/main"
     }
   }
 }
 ```
 
 `StringEquals` on `sub`, with no wildcards: only workflow runs on `main` of this repository can assume the role.
-Pull requests, other branches, tags, forks and other repositories are refused. The role's permissions:
+Pull requests, other branches, tags, forks and other repositories are refused.
+
+The repository uses GitHub's immutable OIDC subject format, so the subject carries the numeric owner and repository
+IDs (`yihernggggg@165023723/hostops-agent@1468683679`). A repository re-created under the same name has a different
+ID and cannot assume the role. The current prefix is shown by
+`gh api repos/yihernggggg/hostops-agent/actions/oidc/customization/sub` (`sub_claim_prefix`). The role's permissions:
 
 | Permission | Scope |
 | --- | --- |

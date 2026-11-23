@@ -27,10 +27,13 @@ Parameters:
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
-  GitHubRepo:
+  GitHubSubjectPrefix:
     Type: String
-    Default: yihernggggg/hostops-agent
-    AllowedPattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+    Default: repo:yihernggggg@165023723/hostops-agent@1468683679
+    AllowedPattern: ^repo:[A-Za-z0-9_.-]+@[0-9]+/[A-Za-z0-9_.-]+@[0-9]+$
+    Description: >-
+      OIDC subject prefix in GitHub's immutable format (owner@id/repo@id). See the repo's
+      actions/oidc/customization/sub API for the exact value.
   ApiTokenParameterName:
     Type: String
     Default: /hostops/api-token
@@ -202,7 +205,7 @@ Resources:
       com.aws.cloudformation.Context:
         why: Assumed by the deploy workflow; pushes one ECR repo and runs commands on one instance.
         must:
-          - Trust stays limited to repo:<GitHubRepo>:ref:refs/heads/main and audience sts.amazonaws.com.
+          - Trust stays limited to <GitHubSubjectPrefix>:ref:refs/heads/main and audience sts.amazonaws.com.
     Properties:
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
@@ -215,7 +218,7 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:ref:refs/heads/main
+                token.actions.githubusercontent.com:sub: !Sub ${GitHubSubjectPrefix}:ref:refs/heads/main
       Policies:
         - PolicyName: push-image-and-deploy
           PolicyDocument:
