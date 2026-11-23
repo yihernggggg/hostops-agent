@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hostops-agent"
+version = "0.1.0"
+description = "Incident triage agent for a short-term rental business, with observability and governance."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    "prometheus-client>=0.20",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+llm = ["anthropic>=0.40", "openai>=1.50"]
+dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["hostops"]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",   # pycodestyle, pyflakes
+    "I",             # import sorting
+    "B",             # bugbear
+    "UP",            # pyupgrade
+    "SIM",           # simplify
+    "S",             # bandit security checks
+    "ANN",           # type annotations required
+    "TID",           # tidy imports: banned-api enforces the architecture rule
+    "RUF",
+    "PGH",           # blanket type: ignore without a code is an error
+]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# Guardrail 3: the agent and the governance layer touch the world only through tools.
+# Banned for the whole package (stricter than needed); tests are the only exemption.
+"hostops.service".msg = "Only tests may import hostops.service. The agent acts through tools, governance stays pure."
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "ANN", "TID251"]
+"evals/**" = ["S101"]
+"scripts/**" = ["S311"]  # random is fine for synthetic traffic
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["hostops"]
+# Guardrail 4: no explicit Any in hostops/. JSON-ish values use `object` and are narrowed.
+disallow_any_explicit = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["anthropic", "anthropic.*", "openai", "openai.*"]
+# The llm extra is optional at runtime; when absent, mypy should not fail the import.
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+filterwarnings = ["error::DeprecationWarning:hostops.*"]
