@@ -1,10 +1,12 @@
 # Local monitoring stack: service + Prometheus + Alertmanager + Grafana.
 # Host ports are overridable, e.g. HOSTOPS_PORT=8001 docker compose up -d --build
-# Ports bind to 127.0.0.1 only: the API has no auth yet and Grafana uses local admin/admin.
+# Ports bind to 127.0.0.1 only, here and on EC2 (reached there through an SSM port forward): the API token
+# travels over plain HTTP and Grafana uses admin/admin.
 services:
   hostops:
     build: .
-    image: hostops-agent:local
+    # Deploys set HOSTOPS_IMAGE to the ECR image for a commit; locally compose builds hostops-agent:local.
+    image: ${HOSTOPS_IMAGE:-hostops-agent:local}
     environment:
       HOSTOPS_PROVIDER: ${HOSTOPS_PROVIDER:-offline}
       HOSTOPS_SYNC_INTERVAL_S: "15"

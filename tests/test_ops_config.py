@@ -103,10 +103,15 @@ def test_dashboard_panels_are_well_formed() -> None:
 
 
 def test_compose_publishes_ports_on_loopback_only() -> None:
-    # The service has no auth yet and Grafana uses admin/admin locally: never expose them to the LAN.
+    # Locally and on EC2 alike: the API token travels over plain HTTP and Grafana uses admin/admin,
+    # so nothing is published beyond loopback. Remote access is an SSM port forward.
     ports = re.findall(r'^\s*-\s*"([^"]+:\d+)"\s*$', (ROOT / "docker-compose.yml").read_text(), re.M)
     assert len(ports) == 4
     assert all(p.startswith("127.0.0.1:") for p in ports), ports
+
+
+def test_compose_image_is_overridable_for_deploys() -> None:
+    assert "image: ${HOSTOPS_IMAGE:-hostops-agent:local}" in (ROOT / "docker-compose.yml").read_text()
 
 
 def test_alertmanager_repeats_often_enough_to_recover_lost_incidents() -> None:
