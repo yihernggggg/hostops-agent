@@ -107,3 +107,12 @@ def test_compose_publishes_ports_on_loopback_only() -> None:
     ports = re.findall(r'^\s*-\s*"([^"]+:\d+)"\s*$', (ROOT / "docker-compose.yml").read_text(), re.M)
     assert len(ports) == 4
     assert all(p.startswith("127.0.0.1:") for p in ports), ports
+
+
+def test_alertmanager_repeats_often_enough_to_recover_lost_incidents() -> None:
+    # The incident store is in memory: after a service restart, a still-firing alert only comes back
+    # when Alertmanager repeats it. Repeats merge into the open incident, so frequent is safe.
+    match = re.search(r"repeat_interval:\s*(\d+)([smh])", ALERTMANAGER.read_text())
+    assert match
+    seconds = int(match.group(1)) * {"s": 1, "m": 60, "h": 3600}[match.group(2)]
+    assert seconds <= 300
