@@ -104,6 +104,9 @@ docker compose up -d --build
 
 # Send synthetic traffic and inject a calendar sync outage (--scenario)
 python scripts/simulate.py --scenario calendar_outage
+
+# Apply (or re-apply) branch protection on main: required CI checks, PRs only, admins included
+scripts/protect_main.sh
 ```
 
 Grafana: http://localhost:3000 (admin / admin). Prometheus: http://localhost:9090.
